@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # ADRot targets Windows admins but the analysis engine is pure PowerShell 7
+        # with no Windows-only calls, so it must keep working on Linux — that is what
+        # makes the offline snapshot workflow usable from a CI runner or a Mac.
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Cache PowerShell modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/powershell/Modules
+            ~/Documents/PowerShell/Modules
+          key: psmodules-${{ runner.os }}-pester6-pssa1.22
+
+      - name: Install Pester and PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          foreach ($m in @(
+              @{ Name = 'Pester';           Version = '6.0.0' },
+              @{ Name = 'PSScriptAnalyzer'; Version = '1.22.0' })) {
+            if (-not (Get-Module -ListAvailable $m.Name | Where-Object Version -ge $m.Version)) {
+              Install-Module $m.Name -MinimumVersion $m.Version -Scope CurrentUser -Force -AllowClobber
+            }
+          }
+
+      - name: Verify the module imports cleanly
+        shell: pwsh
+        run: |
+          Import-Module ./src/ADRot/ADRot.psd1 -Force -ErrorAction Stop
+          $exported = (Get-Command -Module ADRot).Name
+          Write-Host "Exported: $($exported -join ', ')"
+          if ($exported.Count -ne 3) { throw "Expected 3 exported commands, got $($exported.Count)" }
+
+      - name: Lint
+        shell: pwsh
+        run: |
+          $issues = @()
+          foreach ($path in @('./src', './tests')) {
+            $issues += Invoke-ScriptAnalyzer -Path $path -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
+          }
+          if ($issues) {
+            $issues | Format-Table Severity, RuleName, ScriptName, Line, Message -AutoSize -Wrap
+            throw "$($issues.Count) lint issue(s) found"
+          }
+          Write-Host 'Lint clean.' -ForegroundColor Green
+
+      - name: Unit tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests/unit'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = './TestResults.xml'
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          Invoke-Pester -Configuration $config
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: TestResults.xml
+          if-no-files-found: warn
+
+      - name: Verify the demo report renders
+        shell: pwsh
+        run: |
+          Import-Module ./src/ADRot/ADRot.psd1 -Force
+          New-Item -ItemType Directory -Force -Path ./out | Out-Null
+          Invoke-ADRotScan -SnapshotPath ./tests/fixtures/dirty-domain.json `
+            -HtmlPath ./out/demo-report.html -Quiet -InformationAction SilentlyContinue | Out-Null
+          if (-not (Test-Path ./out/demo-report.html)) { throw 'HTML report was not written' }
+          Write-Host "Report size: $((Get-Item ./out/demo-report.html).Length) bytes"
+
+      - name: Upload demo report
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-report
+          path: out/demo-report.html
+
+  integration:
+    name: Integration against a live LDAP server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Start the seeded LDAP server
+        run: docker compose -f docker/docker-compose.yml up -d --build --wait
+
+      - name: Integration tests
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          if (-not (Get-Module -ListAvailable Pester | Where-Object Version -ge '6.0.0')) {
+            Install-Module Pester -MinimumVersion 6.0.0 -Scope CurrentUser -Force
+          }
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests/integration'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+      - name: LDAP server logs
+        if: failure()
+        run: docker compose -f docker/docker-compose.yml logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v
+
+  container:
+    name: Build the container image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -f docker/Dockerfile -t adrot:ci .
+
+      - name: Smoke-test the image against the bundled fixture
+        run: |
+          docker run --rm -v "$PWD/tests/fixtures:/fixtures:ro" adrot:ci \
+            -SnapshotPath /fixtures/clean-domain.json -Quiet
