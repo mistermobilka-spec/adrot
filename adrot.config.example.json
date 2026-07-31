@@ -1,0 +1,38 @@
+{
+  "$comment": [
+    "ADRot configuration template. Copy to adrot.config.json and edit, then run:",
+    "  Invoke-ADRotScan -ConfigPath ./adrot.config.json",
+    "Environment variables (see .env.example) override values in this file.",
+    "ADRot never stores credentials — authentication is Negotiate/Kerberos as the calling user."
+  ],
+
+  "server": null,
+  "port": 389,
+  "useSsl": false,
+  "searchBase": null,
+
+  "thresholds": {
+    "staleDays": 90,
+    "krbtgtMaxAgeDays": 180,
+    "maxPrivilegedMembers": 5,
+    "minPasswordLength": 14,
+    "maxPasswordAgeDays": 365
+  },
+
+  "legacyOperatingSystems": [
+    "Windows 2000",
+    "Windows XP",
+    "Windows Vista",
+    "Windows 7",
+    "Windows 8",
+    "Windows Server 2003",
+    "Windows Server 2008",
+    "Windows Server 2012"
+  ],
+
+  "$comment_disabledRules": "Rule IDs listed here are skipped entirely, e.g. [\"AD-007\"].",
+  "disabledRules": [],
+
+  "failOn": "None",
+  "logLevel": "Info"
+}

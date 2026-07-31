@@ -1,0 +1,31 @@
+# ADRot output — never commit real domain data
+out/
+*.adrot.json
+*.adrot.html
+adrot-report-*.html
+adrot-snapshot-*.json
+
+# Local config / secrets
+.env
+adrot.config.json
+
+# PowerShell / .NET
+*.suo
+*.user
+bin/
+obj/
+
+# Test output
+TestResults.xml
+coverage.xml
+testresults/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
