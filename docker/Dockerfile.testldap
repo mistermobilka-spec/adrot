@@ -1,0 +1,31 @@
+# Seeded OpenLDAP server for the ADRot integration test suite.
+#
+# Built from Debian + slapd rather than a third-party OpenLDAP image so the schema,
+# the seed data and the startup sequence are all under this repository's control and
+# cannot drift when an upstream image changes its bootstrap conventions.
+#
+# THIS IS A TEST FIXTURE. It binds anonymously, uses a throwaway password, and loads
+# a fake AD schema under a private OID arc. Never deploy it.
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LDAP_BASE=dc=adrot,dc=test \
+    LDAP_DOMAIN=adrot.test \
+    LDAP_ADMIN_DN=cn=admin,dc=adrot,dc=test \
+    LDAP_ADMIN_PW=adrot-integration-test \
+    BULK_USERS=600
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends slapd ldap-utils \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY seed/adrot-test-schema.ldif /seed/adrot-test-schema.ldif
+COPY seed/seed.sh                /seed/seed.sh
+COPY entrypoint-testldap.sh      /entrypoint.sh
+RUN chmod +x /seed/seed.sh /entrypoint.sh
+
+EXPOSE 389
+HEALTHCHECK --interval=3s --timeout=5s --start-period=5s --retries=20 \
+  CMD ldapsearch -x -H ldap://127.0.0.1:389 -b "$LDAP_BASE" -s base '(objectClass=*)' >/dev/null 2>&1 || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]

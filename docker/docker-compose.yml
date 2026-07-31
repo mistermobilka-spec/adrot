@@ -1,0 +1,19 @@
+# Test fixture only — a throwaway LDAP directory for ADRot's integration suite.
+# Do not deploy this. It allows anonymous reads and ships a hardcoded test password.
+services:
+  testldap:
+    build:
+      context: .
+      dockerfile: Dockerfile.testldap
+    container_name: adrot-testldap
+    # Bound to loopback so the fixture is never reachable from outside this machine.
+    ports:
+      - "127.0.0.1:3890:389"
+    environment:
+      BULK_USERS: "600"
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://127.0.0.1:389 -b dc=adrot,dc=test -s base '(objectClass=*)' >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
