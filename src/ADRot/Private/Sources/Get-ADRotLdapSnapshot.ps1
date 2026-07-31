@@ -26,6 +26,9 @@ function New-ADRotLdapConnection {
     )
 
     $server = $Config.server
+    if ([string]::IsNullOrWhiteSpace($server) -and $Config.authType -eq 'Anonymous') {
+        throw 'ADRot requires an explicit -Server when authType is Anonymous; there is no domain to auto-discover.'
+    }
     if ([string]::IsNullOrWhiteSpace($server)) {
         # Auto-discover: the machine's own AD domain. Fails clearly off-domain.
         try {
@@ -42,20 +45,25 @@ function New-ADRotLdapConnection {
         $server, [int] $Config.port, $false, $false)
 
     $connection = [System.DirectoryServices.Protocols.LdapConnection]::new($identifier)
-    $connection.AuthType = [System.DirectoryServices.Protocols.AuthType]::Negotiate
     $connection.SessionOptions.ProtocolVersion = 3
     $connection.SessionOptions.ReferralChasing = [System.DirectoryServices.Protocols.ReferralChasingOptions]::None
+
+    $authType = if ($Config.ContainsKey('authType') -and $Config.authType) { $Config.authType } else { 'Negotiate' }
+    $connection.AuthType = [System.DirectoryServices.Protocols.AuthType] $authType
 
     if ($Config.useSsl) {
         $connection.SessionOptions.SecureSocketLayer = $true
     }
-    else {
+    elseif ($authType -eq 'Negotiate') {
+        # Signing and sealing require a Negotiate security context, so they can only be
+        # demanded on an authenticated bind. Against Active Directory this is the
+        # normal path and is not optional hardening.
         $connection.SessionOptions.Signing = $true
         $connection.SessionOptions.Sealing = $true
     }
 
     Write-ADRotLog -Level Info -Message 'ldap.connect' -Data @{
-        server = $server; port = $Config.port; ssl = $Config.useSsl
+        server = $server; port = $Config.port; ssl = $Config.useSsl; auth = $authType
     }
 
     try {
@@ -137,7 +145,26 @@ function Invoke-ADRotLdapSearch {
             $SearchBase, $Filter, [System.DirectoryServices.Protocols.SearchScope]::Subtree, $Attribute)
         [void] $request.Controls.Add($pageControl)
 
-        $response = [System.DirectoryServices.Protocols.SearchResponse] $Connection.SendRequest($request)
+        try {
+            $response = [System.DirectoryServices.Protocols.SearchResponse] $Connection.SendRequest($request)
+        }
+        catch [System.DirectoryServices.Protocols.LdapException] {
+            # ErrorCode 4 is sizeLimitExceeded. Active Directory caps a single *page*
+            # and lets paging retrieve everything, but some directories (OpenLDAP by
+            # default) cap the *total* entries a search may return, so paging cannot
+            # get past it. Fail loudly with an explanation: returning the partial set
+            # would mean reporting "no findings" for objects never examined.
+            if ($_.Exception.ErrorCode -eq 4) {
+                throw ("ADRot stopped after $($entries.Count) entries: the directory " +
+                       "enforces a server-side size limit on this search. Raise the " +
+                       "server's size limit for the querying account, or narrow the scan " +
+                       "with -SearchBase / a custom filter. Refusing to report on a " +
+                       "partial view of the directory. Filter was: $Filter")
+            }
+            throw ("ADRot LDAP search failed (code $($_.Exception.ErrorCode)): " +
+                   "$($_.Exception.Message). Filter was: $Filter")
+        }
+
         $pages++
         foreach ($e in $response.Entries) { $entries.Add($e) }
 
@@ -194,6 +221,43 @@ function Get-ADRotLdapAttribute {
     return [string] $attr[0]
 }
 
+function Get-ADRotLdapBinaryAttribute {
+    <#
+    .SYNOPSIS
+        Reads a binary attribute from a SearchResultEntry as raw bytes.
+    .DESCRIPTION
+        The DirectoryAttribute indexer coerces values to String, which mangles binary
+        data such as objectSid into unusable text. GetValues([byte[]]) is the only way
+        to retrieve the bytes intact.
+    .PARAMETER Entry
+        The LDAP entry.
+    .PARAMETER Name
+        Attribute name, e.g. 'objectSid'.
+    .OUTPUTS
+        System.Byte[] — or $null when the attribute is absent or unreadable.
+    #>
+    [CmdletBinding()]
+    [OutputType([byte[]])]
+    param(
+        [Parameter(Mandatory)] $Entry,
+        [Parameter(Mandatory)][string] $Name
+    )
+
+    if (-not $Entry.Attributes.Contains($Name)) { return $null }
+
+    try {
+        $values = $Entry.Attributes[$Name].GetValues([byte[]])
+        if ($null -eq $values -or $values.Count -eq 0) { return $null }
+        return [byte[]] $values[0]
+    }
+    catch {
+        Write-ADRotLog -Level Warn -Message 'ldap.binary.read.failed' -Data @{
+            attribute = $Name; error = $_.Exception.Message
+        }
+        return $null
+    }
+}
+
 function Get-ADRotLdapSnapshot {
     <#
     .SYNOPSIS
@@ -236,9 +300,8 @@ function Get-ADRotLdapSnapshot {
             'lastLogonTimestamp', 'pwdLastSet', 'whenCreated', 'servicePrincipalName',
             'memberOf', 'adminCount', 'objectSid')
         $users = foreach ($e in (Invoke-ADRotLdapSearch -Connection $connection -SearchBase $searchBase `
-                    -Filter '(&(objectCategory=person)(objectClass=user))' -Attribute $userAttrs)) {
-            $sidBytes = $null
-            if ($e.Attributes.Contains('objectSid')) { $sidBytes = [byte[]] $e.Attributes['objectSid'][0] }
+                    -Filter $Config.filters.user -Attribute $userAttrs)) {
+            $sidBytes = Get-ADRotLdapBinaryAttribute -Entry $e -Name 'objectSid'
 
             @{
                 samAccountName       = Get-ADRotLdapAttribute -Entry $e -Name 'sAMAccountName'
@@ -258,7 +321,7 @@ function Get-ADRotLdapSnapshot {
         $computerAttrs = @('sAMAccountName', 'distinguishedName', 'userAccountControl',
             'operatingSystem', 'operatingSystemVersion', 'lastLogonTimestamp', 'whenCreated')
         $computers = foreach ($e in (Invoke-ADRotLdapSearch -Connection $connection -SearchBase $searchBase `
-                    -Filter '(objectCategory=computer)' -Attribute $computerAttrs)) {
+                    -Filter $Config.filters.computer -Attribute $computerAttrs)) {
             @{
                 samAccountName         = Get-ADRotLdapAttribute -Entry $e -Name 'sAMAccountName'
                 distinguishedName      = Get-ADRotLdapAttribute -Entry $e -Name 'distinguishedName'
@@ -272,9 +335,8 @@ function Get-ADRotLdapSnapshot {
 
         # --- Groups ----------------------------------------------------------------
         $groups = foreach ($e in (Invoke-ADRotLdapSearch -Connection $connection -SearchBase $searchBase `
-                    -Filter '(objectCategory=group)' -Attribute @('sAMAccountName', 'distinguishedName', 'member', 'objectSid'))) {
-            $sidBytes = $null
-            if ($e.Attributes.Contains('objectSid')) { $sidBytes = [byte[]] $e.Attributes['objectSid'][0] }
+                    -Filter $Config.filters.group -Attribute @('sAMAccountName', 'distinguishedName', 'member', 'objectSid'))) {
+            $sidBytes = Get-ADRotLdapBinaryAttribute -Entry $e -Name 'objectSid'
 
             @{
                 samAccountName    = Get-ADRotLdapAttribute -Entry $e -Name 'sAMAccountName'
@@ -299,9 +361,8 @@ function Get-ADRotLdapSnapshot {
             $domainPolicy.maxPwdAgeDays = ConvertFrom-ADRotPwdAgeInterval -Value (Get-ADRotLdapAttribute -Entry $d -Name 'maxPwdAge')
             $maq = Get-ADRotLdapAttribute -Entry $d -Name 'ms-DS-MachineAccountQuota'
             $domainPolicy.machineAccountQuota = if ($null -ne $maq) { [int] $maq } else { $null }
-            if ($d.Attributes.Contains('objectSid')) {
-                $domainSid = ConvertFrom-ADRotLdapSid -Bytes ([byte[]] $d.Attributes['objectSid'][0])
-            }
+            $domainSidBytes = Get-ADRotLdapBinaryAttribute -Entry $d -Name 'objectSid'
+            if ($domainSidBytes) { $domainSid = ConvertFrom-ADRotLdapSid -Bytes $domainSidBytes }
         }
 
         $snapshot = @{

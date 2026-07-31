@@ -16,6 +16,22 @@ function Get-ADRotDefaultConfig {
         port                    = 389
         useSsl                  = $false
         searchBase              = $null
+
+        # 'Negotiate' authenticates as the calling Windows identity (Kerberos, then
+        # NTLM) and is correct for Active Directory. 'Anonymous' is for directories
+        # that permit unauthenticated reads. There is deliberately no password-based
+        # option: ADRot does not handle credentials.
+        authType                = 'Negotiate'
+
+        # LDAP search filters. Overridable so a scan can be scoped to a single OU, or
+        # pointed at a directory that is not Active Directory (which is how the
+        # integration suite exercises this code path against OpenLDAP).
+        filters                 = @{
+            user     = '(&(objectCategory=person)(objectClass=user))'
+            computer = '(objectCategory=computer)'
+            group    = '(objectCategory=group)'
+        }
+
         thresholds              = @{
             staleDays            = 90
             krbtgtMaxAgeDays     = 180
@@ -75,8 +91,10 @@ function Resolve-ADRotConfig {
 
         foreach ($key in $fromFile.Keys) {
             if ($key.StartsWith('$')) { continue }   # JSON pseudo-comment
-            if ($key -eq 'thresholds' -and $fromFile[$key] -is [hashtable]) {
-                foreach ($t in $fromFile[$key].Keys) { $config.thresholds[$t] = $fromFile[$key][$t] }
+            if ($key -in @('thresholds', 'filters') -and $fromFile[$key] -is [hashtable]) {
+                # Merge rather than replace, so a file that sets one threshold does not
+                # silently drop the defaults for all the others.
+                foreach ($t in $fromFile[$key].Keys) { $config[$key][$t] = $fromFile[$key][$t] }
             }
             else {
                 $config[$key] = $fromFile[$key]
@@ -91,6 +109,7 @@ function Resolve-ADRotConfig {
         ADROT_SEARCH_BASE             = 'searchBase'
         ADROT_FAIL_ON                 = 'failOn'
         ADROT_LOG_LEVEL               = 'logLevel'
+        ADROT_AUTH_TYPE               = 'authType'
     }
     foreach ($name in $envMap.Keys) {
         $value = [Environment]::GetEnvironmentVariable($name)
@@ -129,6 +148,10 @@ function Resolve-ADRotConfig {
 
     if ($config.failOn -notin @('Critical', 'High', 'Medium', 'Low', 'None')) {
         throw "failOn must be one of Critical, High, Medium, Low, None — got '$($config.failOn)'."
+    }
+
+    if ($config.authType -notin @('Negotiate', 'Anonymous')) {
+        throw "authType must be Negotiate or Anonymous — got '$($config.authType)'. ADRot does not accept passwords."
     }
 
     return $config
