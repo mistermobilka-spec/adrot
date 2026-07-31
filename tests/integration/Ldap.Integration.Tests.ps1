@@ -187,6 +187,89 @@ Describe 'Rule engine over live-fetched data' -Skip:(-not $LdapReachable) {
     }
 }
 
+Describe 'Snapshot export round-trip' -Skip:(-not $LdapReachable) {
+    BeforeAll {
+        $script:RoundTripPath = Join-Path ([System.IO.Path]::GetTempPath()) "adrot-rt-$([guid]::NewGuid()).json"
+        $script:ConfigPath = Join-Path ([System.IO.Path]::GetTempPath()) "adrot-rt-cfg-$([guid]::NewGuid()).json"
+
+        # filters have no environment override, so they must come from a config file.
+        @{
+            port       = $script:LdapPort
+            authType   = 'Anonymous'
+            searchBase = $script:BaseDn
+            filters    = @{
+                user     = '(&(objectClass=inetOrgPerson)(objectCategory=person))'
+                computer = '(&(objectClass=device)(objectCategory=computer))'
+                group    = '(&(objectClass=groupOfNames)(objectCategory=group))'
+            }
+        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $script:ConfigPath -Encoding utf8
+
+        $script:LiveResult = Invoke-ADRotScan -Server $script:LdapHost -ConfigPath $script:ConfigPath `
+            -Quiet -InformationAction SilentlyContinue
+
+        Export-ADRotSnapshot -Path $script:RoundTripPath -Server $script:LdapHost `
+            -ConfigPath $script:ConfigPath -Force -InformationAction SilentlyContinue | Out-Null
+
+        $script:RoundTripResult = Invoke-ADRotScan -SnapshotPath $script:RoundTripPath `
+            -Quiet -InformationAction SilentlyContinue
+    }
+
+    AfterAll {
+        Remove-Item $script:RoundTripPath, $script:ConfigPath -ErrorAction SilentlyContinue
+    }
+
+    It 'writes a snapshot file' {
+        Test-Path $script:RoundTripPath | Should -BeTrue
+        (Get-Item $script:RoundTripPath).Length | Should -BeGreaterThan 1000
+    }
+
+    It 'refuses to overwrite an existing snapshot without -Force' {
+        { Export-ADRotSnapshot -Path $script:RoundTripPath -Server $script:LdapHost `
+              -ConfigPath $script:ConfigPath -InformationAction SilentlyContinue } |
+            Should -Throw '*already exists*'
+    }
+
+    It 'preserves the object counts through export and re-import' {
+        $script:RoundTripResult.Stats.Users     | Should -Be $script:LiveResult.Stats.Users
+        $script:RoundTripResult.Stats.Computers | Should -Be $script:LiveResult.Stats.Computers
+        $script:RoundTripResult.Stats.Groups    | Should -Be $script:LiveResult.Stats.Groups
+    }
+
+    It 'produces exactly the same findings as scanning the directory live' {
+        # This is the assertion that matters. ConvertTo-ADRotExportableAccount strips
+        # the derived uacFlags/enabled fields and stringifies every DateTimeOffset;
+        # Import-ADRotSnapshot must re-derive all of it identically. If the round-trip
+        # were lossy, the offline workflow the README leads with would quietly report
+        # different findings from a live scan of the same domain.
+        $fingerprint = {
+            param($result)
+            ($result.Findings | ForEach-Object {
+                "$($_.RuleId):$($_.AffectedCount):$(($_.Affected.Name | Sort-Object) -join '|')"
+            } | Sort-Object) -join "`n"
+        }
+        (& $fingerprint $script:RoundTripResult) | Should -Be (& $fingerprint $script:LiveResult)
+    }
+
+    It 'preserves the score' {
+        $script:RoundTripResult.Score.Score | Should -Be $script:LiveResult.Score.Score
+        $script:RoundTripResult.Score.Grade | Should -Be $script:LiveResult.Score.Grade
+    }
+
+    It 'does not export derived fields that are recomputed on import' {
+        $raw = Get-Content $script:RoundTripPath -Raw | ConvertFrom-Json -AsHashtable
+        $raw.users[0].Keys | Should -Not -Contain 'uacFlags'
+        $raw.users[0].Keys | Should -Not -Contain 'enabled'
+    }
+
+    It 'exports no password or hash attributes' {
+        # ADRot never requests these; assert the file cannot leak them.
+        $raw = Get-Content $script:RoundTripPath -Raw
+        foreach ($forbidden in @('unicodePwd', 'dBCSPwd', 'ntPwdHistory', 'lmPwdHistory', 'supplementalCredentials')) {
+            $raw | Should -Not -BeLike "*$forbidden*"
+        }
+    }
+}
+
 Describe 'Connection error handling' -Skip:(-not $LdapReachable) {
     It 'reports a clear error when the server refuses the connection' {
         InModuleScope ADRot {
