@@ -27,9 +27,9 @@
                 'ActiveDirectory', 'Security', 'Audit', 'Hygiene', 'LDAP',
                 'Windows', 'SysAdmin', 'BlueTeam', 'Compliance'
             )
-            LicenseUri   = 'https://github.com/MisterMobilka/adrot/blob/main/LICENSE'
-            ProjectUri   = 'https://github.com/MisterMobilka/adrot'
-            ReleaseNotes = 'Initial release: 15 hygiene rules, LDAP and offline-snapshot sources, HTML/JSON/console output.'
+            LicenseUri   = 'https://github.com/mistermobilka-spec/adrot/blob/main/LICENSE'
+            ProjectUri   = 'https://github.com/mistermobilka-spec/adrot'
+            ReleaseNotes = 'Initial release: 17 hygiene rules, LDAP and offline-snapshot sources, HTML/JSON/console output.'
         }
     }
 }

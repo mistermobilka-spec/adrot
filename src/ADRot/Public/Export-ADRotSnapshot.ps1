@@ -36,7 +36,7 @@ function Export-ADRotSnapshot {
         Export-ADRotSnapshot -Path ./client.json -Server dc01.client.local
         Invoke-ADRotScan -SnapshotPath ./client.json -HtmlPath ./client-report.html
     .LINK
-        https://github.com/MisterMobilka/adrot
+        https://github.com/mistermobilka-spec/adrot
     #>
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([System.IO.FileInfo])]

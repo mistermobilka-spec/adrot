@@ -49,7 +49,7 @@ function Invoke-ADRotScan {
         Invoke-ADRotScan -FailOn High
         Scan in CI; the process exits non-zero if anything High or Critical is present.
     .LINK
-        https://github.com/MisterMobilka/adrot
+        https://github.com/mistermobilka-spec/adrot
     #>
     [CmdletBinding(DefaultParameterSetName = 'Live')]
     [OutputType([pscustomobject])]

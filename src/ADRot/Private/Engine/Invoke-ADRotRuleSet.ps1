@@ -155,7 +155,7 @@ function Invoke-ADRotRuleSet {
                     Category      = $r.Category
                     Weight        = 0
                     Rationale     = "This rule could not be evaluated: $($_.Exception.Message)"
-                    Remediation   = 'Report this as a bug at https://github.com/MisterMobilka/adrot/issues with the snapshot that triggered it.'
+                    Remediation   = 'Report this as a bug at https://github.com/mistermobilka-spec/adrot/issues with the snapshot that triggered it.'
                     Reference     = $r.Reference
                     AffectedCount = 0
                     Affected      = @()

@@ -11,7 +11,7 @@ FROM mcr.microsoft.com/powershell:7.4-debian-12
 
 LABEL org.opencontainers.image.title="ADRot" \
       org.opencontainers.image.description="Read-only Active Directory hygiene and security scanner" \
-      org.opencontainers.image.source="https://github.com/MisterMobilka/adrot" \
+      org.opencontainers.image.source="https://github.com/mistermobilka-spec/adrot" \
       org.opencontainers.image.licenses="MIT"
 
 WORKDIR /opt/adrot

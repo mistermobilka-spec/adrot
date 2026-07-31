@@ -2,7 +2,7 @@
 
 **Find the rot in your Active Directory. One script, no install, read-only.**
 
-[![CI](https://github.com/MisterMobilka/adrot/actions/workflows/ci.yml/badge.svg)](https://github.com/MisterMobilka/adrot/actions/workflows/ci.yml)
+[![CI](https://github.com/mistermobilka-spec/adrot/actions/workflows/ci.yml/badge.svg)](https://github.com/mistermobilka-spec/adrot/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PowerShell 7+](https://img.shields.io/badge/PowerShell-7%2B-5391FE.svg)](https://github.com/PowerShell/PowerShell)
 [![No RSAT required](https://img.shields.io/badge/RSAT-not%20required-success.svg)](#why-no-rsat)
@@ -78,14 +78,18 @@ $ Invoke-ADRotScan
 
 `-HtmlPath` produces a self-contained HTML report — one file, no CDN, no webfont, no
 remote anything — with the rationale, remediation steps and every affected object.
-Generate it yourself with `make report`.
+See it for yourself against the bundled fixture:
+
+```powershell
+Invoke-ADRotScan -SnapshotPath ./tests/fixtures/dirty-domain.json -HtmlPath ./report.html
+```
 
 ## Quick start
 
 **Scan the domain you're joined to:**
 
 ```powershell
-git clone https://github.com/MisterMobilka/adrot.git
+git clone https://github.com/mistermobilka-spec/adrot.git
 cd adrot
 Import-Module ./src/ADRot/ADRot.psd1
 Invoke-ADRotScan
