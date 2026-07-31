@@ -1,0 +1,202 @@
+{
+  "$comment": "Every rule in the catalogue fires against this fixture exactly once. Used by tests/unit/RuleCatalogue.Tests.ps1 to prove no rule is silently unreachable.",
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-01T00:00:00Z",
+  "domain": {
+    "dnsRoot": "rot.example.com",
+    "distinguishedName": "DC=rot,DC=example,DC=com",
+    "domainSid": "S-1-5-21-9999999999-8888888888-7777777777",
+    "functionalLevel": "2008R2"
+  },
+  "domainPolicy": {
+    "minPwdLength": 7,
+    "lockoutThreshold": 0,
+    "maxPwdAgeDays": 0,
+    "machineAccountQuota": 10
+  },
+  "users": [
+    {
+      "$why": "AD-001 reversible encryption (512 + 128)",
+      "samAccountName": "legacy.radius",
+      "distinguishedName": "CN=legacy.radius,OU=Legacy,DC=rot,DC=example,DC=com",
+      "userAccountControl": 640,
+      "lastLogonTimestamp": "2026-06-30T10:00:00Z",
+      "pwdLastSet": "2026-06-01T00:00:00Z",
+      "whenCreated": "2015-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 0
+    },
+    {
+      "$why": "AD-002 PASSWD_NOTREQD (512 + 32)",
+      "samAccountName": "kiosk",
+      "distinguishedName": "CN=kiosk,OU=Legacy,DC=rot,DC=example,DC=com",
+      "userAccountControl": 544,
+      "lastLogonTimestamp": "2026-06-20T10:00:00Z",
+      "pwdLastSet": "2026-06-01T00:00:00Z",
+      "whenCreated": "2016-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 0
+    },
+    {
+      "$why": "AD-003 DONT_REQ_PREAUTH (512 + 4194304)",
+      "samAccountName": "asrep.victim",
+      "distinguishedName": "CN=asrep.victim,OU=Legacy,DC=rot,DC=example,DC=com",
+      "userAccountControl": 4194816,
+      "lastLogonTimestamp": "2026-06-15T10:00:00Z",
+      "pwdLastSet": "2026-06-01T00:00:00Z",
+      "whenCreated": "2017-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 0
+    },
+    {
+      "$why": "AD-004 Kerberoastable (SPN on a user) and AD-005 DONT_EXPIRE_PASSWORD (512 + 65536)",
+      "samAccountName": "svc-sql",
+      "distinguishedName": "CN=svc-sql,OU=Service,DC=rot,DC=example,DC=com",
+      "userAccountControl": 66048,
+      "lastLogonTimestamp": "2026-06-30T01:00:00Z",
+      "pwdLastSet": "2026-06-01T00:00:00Z",
+      "whenCreated": "2014-01-01T00:00:00Z",
+      "servicePrincipalName": ["MSSQLSvc/sql01.rot.example.com:1433"],
+      "memberOf": [],
+      "adminCount": 0
+    },
+    {
+      "$why": "AD-006 dormant (last logon 300 days before capture) and AD-008 password 400 days old",
+      "samAccountName": "dormant.user",
+      "distinguishedName": "CN=dormant.user,OU=Staff,DC=rot,DC=example,DC=com",
+      "userAccountControl": 512,
+      "lastLogonTimestamp": "2025-09-04T00:00:00Z",
+      "pwdLastSet": "2025-05-28T00:00:00Z",
+      "whenCreated": "2019-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 0
+    },
+    {
+      "$why": "AD-007 never logged on, created long before the stale grace window",
+      "samAccountName": "provisioned.never",
+      "distinguishedName": "CN=provisioned.never,OU=Staff,DC=rot,DC=example,DC=com",
+      "userAccountControl": 512,
+      "lastLogonTimestamp": null,
+      "pwdLastSet": "2026-06-15T00:00:00Z",
+      "whenCreated": "2025-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 0
+    },
+    {
+      "$why": "AD-010 tier-0 member whose password is 500 days old",
+      "samAccountName": "admin.legacy",
+      "distinguishedName": "CN=admin.legacy,OU=Tier0,DC=rot,DC=example,DC=com",
+      "userAccountControl": 512,
+      "lastLogonTimestamp": "2026-06-28T00:00:00Z",
+      "pwdLastSet": "2025-02-16T00:00:00Z",
+      "whenCreated": "2013-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": ["CN=Domain Admins,CN=Users,DC=rot,DC=example,DC=com"],
+      "adminCount": 1
+    },
+    {
+      "$why": "AD-011 adminCount=1 but no longer in any tier-0 group",
+      "samAccountName": "expired.admin",
+      "distinguishedName": "CN=expired.admin,OU=Staff,DC=rot,DC=example,DC=com",
+      "userAccountControl": 512,
+      "lastLogonTimestamp": "2026-06-29T00:00:00Z",
+      "pwdLastSet": "2026-06-01T00:00:00Z",
+      "whenCreated": "2018-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 1
+    },
+    {
+      "$why": "Filler tier-0 members so Domain Admins exceeds the default threshold of 5 (AD-009)",
+      "samAccountName": "admin.a",
+      "distinguishedName": "CN=admin.a,OU=Tier0,DC=rot,DC=example,DC=com",
+      "userAccountControl": 512,
+      "lastLogonTimestamp": "2026-06-30T00:00:00Z",
+      "pwdLastSet": "2026-06-20T00:00:00Z",
+      "whenCreated": "2020-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": ["CN=Domain Admins,CN=Users,DC=rot,DC=example,DC=com"],
+      "adminCount": 1
+    },
+    {
+      "$why": "AD-015 krbtgt password 900 days old at capture time",
+      "samAccountName": "krbtgt",
+      "distinguishedName": "CN=krbtgt,CN=Users,DC=rot,DC=example,DC=com",
+      "userAccountControl": 514,
+      "lastLogonTimestamp": null,
+      "pwdLastSet": "2024-01-13T00:00:00Z",
+      "whenCreated": "2013-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 1
+    }
+  ],
+  "computers": [
+    {
+      "$why": "AD-012 unconstrained delegation on a workstation (4096 + 524288)",
+      "samAccountName": "PRINT01$",
+      "distinguishedName": "CN=PRINT01,OU=Servers,DC=rot,DC=example,DC=com",
+      "userAccountControl": 528384,
+      "operatingSystem": "Windows Server 2019 Standard",
+      "operatingSystemVersion": "10.0 (17763)",
+      "lastLogonTimestamp": "2026-06-30T00:00:00Z",
+      "whenCreated": "2019-01-01T00:00:00Z"
+    },
+    {
+      "$why": "AD-013 out-of-support operating system",
+      "samAccountName": "OLDAPP01$",
+      "distinguishedName": "CN=OLDAPP01,OU=Servers,DC=rot,DC=example,DC=com",
+      "userAccountControl": 4096,
+      "operatingSystem": "Windows Server 2008 R2 Standard",
+      "operatingSystemVersion": "6.1 (7601)",
+      "lastLogonTimestamp": "2026-06-29T00:00:00Z",
+      "whenCreated": "2011-01-01T00:00:00Z"
+    },
+    {
+      "$why": "AD-014 stale computer account (last logon 250 days before capture)",
+      "samAccountName": "WS-GONE-07$",
+      "distinguishedName": "CN=WS-GONE-07,OU=Workstations,DC=rot,DC=example,DC=com",
+      "userAccountControl": 4096,
+      "operatingSystem": "Windows 10 Enterprise",
+      "operatingSystemVersion": "10.0 (19045)",
+      "lastLogonTimestamp": "2025-10-24T00:00:00Z",
+      "whenCreated": "2021-01-01T00:00:00Z"
+    },
+    {
+      "$why": "A domain controller: trusted for delegation by design, must NOT be flagged by AD-012",
+      "samAccountName": "DC01$",
+      "distinguishedName": "CN=DC01,OU=Domain Controllers,DC=rot,DC=example,DC=com",
+      "userAccountControl": 532480,
+      "operatingSystem": "Windows Server 2019 Datacenter",
+      "operatingSystemVersion": "10.0 (17763)",
+      "lastLogonTimestamp": "2026-06-30T23:00:00Z",
+      "whenCreated": "2019-01-01T00:00:00Z"
+    }
+  ],
+  "groups": [
+    {
+      "samAccountName": "Domain Admins",
+      "distinguishedName": "CN=Domain Admins,CN=Users,DC=rot,DC=example,DC=com",
+      "sid": "S-1-5-21-9999999999-8888888888-7777777777-512",
+      "members": [
+        "CN=admin.legacy,OU=Tier0,DC=rot,DC=example,DC=com",
+        "CN=admin.a,OU=Tier0,DC=rot,DC=example,DC=com",
+        "CN=contractor1,OU=Tier0,DC=rot,DC=example,DC=com",
+        "CN=contractor2,OU=Tier0,DC=rot,DC=example,DC=com",
+        "CN=contractor3,OU=Tier0,DC=rot,DC=example,DC=com",
+        "CN=contractor4,OU=Tier0,DC=rot,DC=example,DC=com"
+      ]
+    },
+    {
+      "samAccountName": "Enterprise Admins",
+      "distinguishedName": "CN=Enterprise Admins,CN=Users,DC=rot,DC=example,DC=com",
+      "sid": "S-1-5-21-9999999999-8888888888-7777777777-519",
+      "members": ["CN=admin.legacy,OU=Tier0,DC=rot,DC=example,DC=com"]
+    }
+  ]
+}

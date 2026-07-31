@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-01T00:00:00Z",
+  "domain": {
+    "dnsRoot": "clean.example.com",
+    "distinguishedName": "DC=clean,DC=example,DC=com",
+    "domainSid": "S-1-5-21-1111111111-2222222222-3333333333",
+    "functionalLevel": "2016"
+  },
+  "domainPolicy": {
+    "minPwdLength": 14,
+    "lockoutThreshold": 5,
+    "maxPwdAgeDays": 365,
+    "machineAccountQuota": 0
+  },
+  "users": [
+    {
+      "samAccountName": "alice",
+      "distinguishedName": "CN=Alice Reyes,OU=Staff,DC=clean,DC=example,DC=com",
+      "userAccountControl": 512,
+      "lastLogonTimestamp": "2026-06-25T08:14:00Z",
+      "pwdLastSet": "2026-05-01T09:00:00Z",
+      "whenCreated": "2024-01-15T10:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 0
+    },
+    {
+      "samAccountName": "svc-backup",
+      "distinguishedName": "CN=svc-backup,OU=Service,DC=clean,DC=example,DC=com",
+      "userAccountControl": 512,
+      "lastLogonTimestamp": "2026-06-30T02:00:00Z",
+      "pwdLastSet": "2026-06-01T00:00:00Z",
+      "whenCreated": "2023-03-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 0
+    },
+    {
+      "samAccountName": "admin.jdoe",
+      "distinguishedName": "CN=admin.jdoe,OU=Tier0,DC=clean,DC=example,DC=com",
+      "userAccountControl": 512,
+      "lastLogonTimestamp": "2026-06-29T17:45:00Z",
+      "pwdLastSet": "2026-06-01T12:00:00Z",
+      "whenCreated": "2022-06-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": ["CN=Domain Admins,CN=Users,DC=clean,DC=example,DC=com"],
+      "adminCount": 1
+    },
+    {
+      "samAccountName": "krbtgt",
+      "distinguishedName": "CN=krbtgt,CN=Users,DC=clean,DC=example,DC=com",
+      "userAccountControl": 514,
+      "lastLogonTimestamp": null,
+      "pwdLastSet": "2026-06-01T00:00:00Z",
+      "whenCreated": "2020-01-01T00:00:00Z",
+      "servicePrincipalName": [],
+      "memberOf": [],
+      "adminCount": 1
+    }
+  ],
+  "computers": [
+    {
+      "samAccountName": "DC01$",
+      "distinguishedName": "CN=DC01,OU=Domain Controllers,DC=clean,DC=example,DC=com",
+      "userAccountControl": 532480,
+      "operatingSystem": "Windows Server 2022 Datacenter",
+      "operatingSystemVersion": "10.0 (20348)",
+      "lastLogonTimestamp": "2026-06-30T23:00:00Z",
+      "whenCreated": "2022-01-01T00:00:00Z"
+    },
+    {
+      "samAccountName": "WS-FIN-01$",
+      "distinguishedName": "CN=WS-FIN-01,OU=Workstations,DC=clean,DC=example,DC=com",
+      "userAccountControl": 4096,
+      "operatingSystem": "Windows 11 Enterprise",
+      "operatingSystemVersion": "10.0 (26100)",
+      "lastLogonTimestamp": "2026-06-28T07:30:00Z",
+      "whenCreated": "2025-02-10T00:00:00Z"
+    }
+  ],
+  "groups": [
+    {
+      "samAccountName": "Domain Admins",
+      "distinguishedName": "CN=Domain Admins,CN=Users,DC=clean,DC=example,DC=com",
+      "sid": "S-1-5-21-1111111111-2222222222-3333333333-512",
+      "members": ["CN=admin.jdoe,OU=Tier0,DC=clean,DC=example,DC=com"]
+    },
+    {
+      "samAccountName": "Enterprise Admins",
+      "distinguishedName": "CN=Enterprise Admins,CN=Users,DC=clean,DC=example,DC=com",
+      "sid": "S-1-5-21-1111111111-2222222222-3333333333-519",
+      "members": ["CN=admin.jdoe,OU=Tier0,DC=clean,DC=example,DC=com"]
+    }
+  ]
+}
