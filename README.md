@@ -239,7 +239,7 @@ because that is how PowerShell reports any unhandled terminating error.
 Install-Module Pester -MinimumVersion 6.0.0 -Scope CurrentUser -Force
 Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
 
-# Lint + 118 unit tests — no Docker, no Active Directory needed
+# Lint + 125 unit tests — no Docker, no Active Directory needed
 Invoke-ScriptAnalyzer -Path ./src -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
 Invoke-Pester ./tests/unit
 ```
@@ -255,7 +255,7 @@ docker compose -f docker/docker-compose.yml down -v
 A [`Makefile`](Makefile) wraps all of the above (`make check`, `make ldap-up`,
 `make test-integration`, `make report`) if you have `make` on PATH.
 
-**118 unit tests** cover every rule against a clean fixture (which must produce *zero*
+**125 unit tests** cover every rule against a clean fixture (which must produce *zero*
 findings) and a deliberately rotten one (which must fire *every* rule — proving no rule
 is silently unreachable), plus scoring, config precedence, snapshot normalisation and
 HTML injection defence.
