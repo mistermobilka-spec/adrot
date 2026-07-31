@@ -127,19 +127,54 @@ Describe 'ConvertFrom-ADRotGeneralizedTime' {
 }
 
 Describe 'ConvertFrom-ADRotLdapSid' {
-    It 'decodes a binary SID to string form' {
-        InModuleScope ADRot {
-            $bytes = [byte[]] @(1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0, 0, 1, 2, 3, 0, 2, 3, 4, 0, 3, 4, 5, 0, 2, 0, 0)
-            $sid = ConvertFrom-ADRotLdapSid -Bytes $bytes
-            $sid | Should -BeLike 'S-1-5-21-*'
-            $sid | Should -BeLike '*-512'
+    # Exact-string assertions, not wildcards. The first implementation used the
+    # Windows-only SecurityIdentifier type, which throws on Linux and made the
+    # function return '' there — a wildcard assertion of 'S-1-5-21-*' would have
+    # caught that, but only because the result was empty. These pin the decoding
+    # itself, including the mixed big-endian authority / little-endian sub-authority
+    # layout, on every platform.
+    It 'decodes <Name> to <Expected>' -ForEach @(
+        @{
+            Name     = 'a domain SID ending in RID 512'
+            Bytes    = [byte[]] @(1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0, 0, 1, 2, 3, 0, 2, 3, 4, 0, 3, 4, 5, 0, 2, 0, 0)
+            Expected = 'S-1-5-21-50462976-67305984-84148992-512'
+        }
+        @{
+            Name     = 'LocalSystem'
+            Bytes    = [byte[]] @(1, 1, 0, 0, 0, 0, 0, 5, 18, 0, 0, 0)
+            Expected = 'S-1-5-18'
+        }
+        @{
+            Name     = 'the built-in Administrators group'
+            Bytes    = [byte[]] @(1, 2, 0, 0, 0, 0, 0, 5, 32, 0, 0, 0, 32, 2, 0, 0)
+            Expected = 'S-1-5-32-544'
+        }
+        @{
+            Name     = 'sub-authorities at the top of the uint32 range'
+            Bytes    = [byte[]] @(1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0, 255, 255, 255, 255, 254, 255, 255, 255, 253, 255, 255, 255, 244, 1, 0, 0)
+            Expected = 'S-1-5-21-4294967295-4294967294-4294967293-500'
+        }
+    ) {
+        InModuleScope ADRot -Parameters @{ b = $Bytes; e = $Expected } {
+            ConvertFrom-ADRotLdapSid -Bytes $b | Should -Be $e
         }
     }
 
-    It 'returns empty string for malformed input rather than throwing' {
-        InModuleScope ADRot {
-            ConvertFrom-ADRotLdapSid -Bytes ([byte[]] @(1, 2, 3)) | Should -Be ''
-            ConvertFrom-ADRotLdapSid -Bytes $null | Should -Be ''
+    It 'runs without the Windows-only SecurityIdentifier type' {
+        # Guards the regression directly: this file must not reintroduce a dependency
+        # that makes SID decoding a no-op on Linux and inside the container image.
+        $source = Get-Content (Join-Path $PSScriptRoot '..' '..' 'src' 'ADRot' 'Private' 'Sources' 'ConvertFrom-ADRotLdapValue.ps1') -Raw
+        $source | Should -Not -Match 'SecurityIdentifier\]::new'
+    }
+
+    It 'returns empty string for <Name> rather than throwing' -ForEach @(
+        @{ Name = 'input shorter than a header'; Bytes = [byte[]] @(1, 2, 3) }
+        @{ Name = 'a truncated sub-authority array'; Bytes = [byte[]] @(1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0) }
+        @{ Name = 'an absurd sub-authority count'; Bytes = [byte[]] @(1, 99, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0) }
+        @{ Name = 'null'; Bytes = $null }
+    ) {
+        InModuleScope ADRot -Parameters @{ b = $Bytes } {
+            ConvertFrom-ADRotLdapSid -Bytes $b -WarningAction SilentlyContinue | Should -Be ''
         }
     }
 }

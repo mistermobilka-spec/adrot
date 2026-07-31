@@ -8,15 +8,24 @@ function ConvertFrom-ADRotLdapSid {
         LDAP returns objectSid as raw bytes. ADRot matches privileged groups on
         well-known RID suffix, so the string form is what the rules need.
 
-        Kept as a standalone pure function so it can be unit-tested without a
-        directory: SID decoding is fiddly (big-endian authority, little-endian
-        sub-authorities) and is exactly the kind of code that silently breaks.
+        Decoded by hand rather than with System.Security.Principal.SecurityIdentifier,
+        which is Windows-only and throws PlatformNotSupportedException on Linux and
+        macOS. That would silently blank every SID on a Linux CI runner or inside the
+        container image, and privileged-group matching would fall back to English
+        display names without anyone noticing.
+
+        Binary layout (MS-DTYP 2.4.2.2):
+          byte  0      revision
+          byte  1      sub-authority count
+          bytes 2-7    identifier authority, 48-bit BIG-endian
+          bytes 8+     sub-authorities, 32-bit LITTLE-endian each
+        The mixed endianness is the part that makes hand-rolling this worth testing.
     .PARAMETER Bytes
         The raw objectSid bytes.
     .OUTPUTS
         System.String — the SID, or an empty string if the input is not a valid SID.
     .EXAMPLE
-        ConvertFrom-ADRotLdapSid -Bytes $entry.Attributes['objectSid'][0]
+        ConvertFrom-ADRotLdapSid -Bytes (Get-ADRotLdapBinaryAttribute -Entry $e -Name 'objectSid')
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -29,10 +38,45 @@ function ConvertFrom-ADRotLdapSid {
     if ($null -eq $Bytes -or $Bytes.Length -lt 8) { return '' }
 
     try {
-        return [System.Security.Principal.SecurityIdentifier]::new($Bytes, 0).Value
+        $revision = [int] $Bytes[0]
+        $subAuthorityCount = [int] $Bytes[1]
+
+        # A SID carries at most 15 sub-authorities; anything else is corrupt input.
+        if ($subAuthorityCount -lt 0 -or $subAuthorityCount -gt 15) {
+            Write-ADRotLog -Level Warn -Message 'sid.parse.failed' -Data @{
+                reason = 'subauthority-count'; count = $subAuthorityCount
+            }
+            return ''
+        }
+        if ($Bytes.Length -lt (8 + 4 * $subAuthorityCount)) {
+            Write-ADRotLog -Level Warn -Message 'sid.parse.failed' -Data @{
+                reason = 'truncated'; length = $Bytes.Length; expected = (8 + 4 * $subAuthorityCount)
+            }
+            return ''
+        }
+
+        [uint64] $authority = 0
+        for ($i = 2; $i -le 7; $i++) {
+            $authority = ($authority -shl 8) -bor [uint64] $Bytes[$i]
+        }
+
+        $sid = [System.Text.StringBuilder]::new("S-$revision-$authority")
+        for ($i = 0; $i -lt $subAuthorityCount; $i++) {
+            $offset = 8 + ($i * 4)
+            # Assembled by hand rather than with BitConverter so the result does not
+            # depend on the endianness of the machine running the scan.
+            [uint32] $sub = [uint32] $Bytes[$offset] `
+                -bor ([uint32] $Bytes[$offset + 1] -shl 8) `
+                -bor ([uint32] $Bytes[$offset + 2] -shl 16) `
+                -bor ([uint32] $Bytes[$offset + 3] -shl 24)
+            [void] $sid.Append("-$sub")
+        }
+        return $sid.ToString()
     }
     catch {
-        Write-ADRotLog -Level Warn -Message 'sid.parse.failed' -Data @{ length = $Bytes.Length }
+        Write-ADRotLog -Level Warn -Message 'sid.parse.failed' -Data @{
+            length = $Bytes.Length; error = $_.Exception.Message
+        }
         return ''
     }
 }
