@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 # Tier-0 groups, identified by well-known RID suffix rather than by name so that
 # non-English domains ("Domänen-Admins", "Администраторы домена") are still matched.
@@ -131,7 +131,12 @@ function Get-ADRotProtectedGroupMemberDn {
         }
     }
 
-    return $members
+    # The comma is load-bearing. PowerShell enumerates collections on return, which
+    # would turn an empty HashSet into $null (and .Contains() into a null-reference
+    # throw) and a populated one into a plain object[] whose .Contains() is
+    # case-SENSITIVE — silently discarding the OrdinalIgnoreCase comparer above and
+    # producing false AD-011 findings for any DN whose casing differs.
+    return , $members
 }
 
 function Test-ADRotAlwaysProtectedAccount {

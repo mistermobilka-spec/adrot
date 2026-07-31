@@ -11,7 +11,12 @@
 
         # The module is dot-sourced from ADRot.psm1; the analyzer cannot see that
         # Public/* functions are consumed by the manifest's FunctionsToExport.
-        'PSUseDeclaredVarsMoreThanAssignments'
+        'PSUseDeclaredVarsMoreThanAssignments',
+
+        # Every rule Test scriptblock takes the same ($Snapshot, $Config) signature so
+        # the engine can invoke them uniformly. Rules that need no threshold genuinely
+        # do not read $Config, and dropping the parameter would break the contract.
+        'PSReviewUnusedParameter'
     )
 
     Rules = @{

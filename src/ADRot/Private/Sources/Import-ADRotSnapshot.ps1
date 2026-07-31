@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 # Bump when the on-disk snapshot shape changes incompatibly.
 $script:ADRotSnapshotSchemaVersion = 1

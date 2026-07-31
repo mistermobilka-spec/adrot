@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 function Get-ADRotReferenceTime {
     <#
@@ -51,6 +51,8 @@ function Get-ADRotAgeInDays {
     .OUTPUTS
         System.Nullable[System.Int32]
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'The unit of measure is days. "AgeInDay" would be wrong, not merely awkward.')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][AllowNull()] $Timestamp,

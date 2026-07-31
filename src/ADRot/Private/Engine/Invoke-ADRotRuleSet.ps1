@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 # Ordering weight for severities, used for sorting and for -FailOn comparisons.
 $script:ADRotSeverityRank = @{
@@ -39,6 +39,8 @@ function New-ADRotRule {
     .OUTPUTS
         System.Management.Automation.PSCustomObject
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Constructs an in-memory object. Changes no system state, so ShouldProcess would be noise.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
@@ -80,6 +82,8 @@ function New-ADRotAffectedObject {
     .OUTPUTS
         System.Management.Automation.PSCustomObject
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Constructs an in-memory object. Changes no system state.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
@@ -187,6 +191,10 @@ function Invoke-ADRotRuleSet {
         }
     }
 
+    # Returned as a plain array: PowerShell unrolls it on the pipeline, so callers that
+    # need .Count on a possibly-empty result wrap with @(), as Invoke-ADRotScan does.
+    # Do NOT add a leading comma here — it would emit the array as a single object and
+    # any caller writing @(...) would silently get a nested array.
     return @($findings | Sort-Object `
         @{ Expression = { $script:ADRotSeverityRank[$_.Severity] }; Descending = $true }, `
         @{ Expression = { $_.AffectedCount }; Descending = $true }, `

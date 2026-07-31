@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 $script:ADRotSeverityColour = @{
     Critical = "`e[1;97;41m"   # bold white on red
