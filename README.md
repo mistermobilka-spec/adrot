@@ -108,17 +108,23 @@ Export-ADRotSnapshot -Path ./client.json -Server dc01.client.local
 Invoke-ADRotScan -SnapshotPath ./client.json -HtmlPath ./client-report.html
 ```
 
-**Gate a pipeline on it:**
+**Gate a pipeline on it.** `-FailOn` raises a terminating error, so wrap it to get a
+distinct exit code:
 
 ```powershell
-Invoke-ADRotScan -FailOn High -Quiet
+try   { Invoke-ADRotScan -FailOn High -Quiet; exit 0 }
+catch { Write-Host $_.Exception.Message; exit 2 }
 ```
 
-**Or run it in Docker** (offline snapshot analysis):
+**Or run it in Docker** (offline snapshot analysis). No image is published yet — build
+it locally:
 
 ```bash
-docker run --rm -v "$PWD:/data" ghcr.io/mistermobilka/adrot -SnapshotPath /data/snapshot.json -HtmlPath /data/report.html
+docker build -f docker/Dockerfile -t adrot .
+docker run --rm -v "$PWD:/data" adrot -SnapshotPath /data/snapshot.json -HtmlPath /data/report.html
 ```
+
+The container maps the threshold breach to exit code 2 for you.
 
 **See what it checks before you point it at production:**
 
@@ -217,35 +223,46 @@ Config file, environment variables, or parameters — later wins. Copy
 **There is no password setting, by design.** ADRot authenticates as the Windows identity
 of whoever runs it. It never accepts, stores or transmits a credential.
 
-Exit codes: `0` clean · `1` the scan could not run · `2` findings breached `-FailOn`.
+**Exit codes** apply to the **container entrypoint** and to the `try/catch` wrapper
+above: `0` clean · `1` the scan could not run · `2` findings breached `-FailOn`.
+Calling the cmdlet directly in `pwsh -c` without a wrapper exits `1` on a breach,
+because that is how PowerShell reports any unhandled terminating error.
 
 ## Testing
 
-```bash
-make bootstrap     # install Pester + PSScriptAnalyzer
-make check         # lint + 118 unit tests — no Docker, no AD needed
-make ldap-up       # start the seeded LDAP fixture
-make test-integration   # 18 tests against a live LDAP server
-make ldap-down
-```
-
-Without `make`:
-
 ```powershell
-Invoke-Pester ./tests/unit
+# Install the two dev dependencies
+Install-Module Pester -MinimumVersion 6.0.0 -Scope CurrentUser -Force
+Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+
+# Lint + 118 unit tests — no Docker, no Active Directory needed
 Invoke-ScriptAnalyzer -Path ./src -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
+Invoke-Pester ./tests/unit
 ```
+
+Integration tests need Docker:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build --wait
+pwsh -c "Invoke-Pester ./tests/integration"
+docker compose -f docker/docker-compose.yml down -v
+```
+
+A [`Makefile`](Makefile) wraps all of the above (`make check`, `make ldap-up`,
+`make test-integration`, `make report`) if you have `make` on PATH.
 
 **118 unit tests** cover every rule against a clean fixture (which must produce *zero*
 findings) and a deliberately rotten one (which must fire *every* rule — proving no rule
 is silently unreachable), plus scoring, config precedence, snapshot normalisation and
 HTML injection defence.
 
-**18 integration tests** run against a real LDAP server in Docker — a Debian + slapd
+**25 integration tests** run against a real LDAP server in Docker — a Debian + slapd
 fixture carrying a hand-written AD-shaped schema, seeded with 604 users so that paged
-search is genuinely exercised rather than fitting in a single page. That suite found two
-bugs no unit test could have: binary `objectSid` values silently decoding to garbage, and
-a server-side size limit surfacing as an unhelpful raw .NET exception.
+search is genuinely exercised rather than fitting in a single page. It also proves the
+offline workflow is lossless: exporting a snapshot and re-scanning it yields byte-identical
+findings to scanning the same directory live. That suite found two bugs no unit test could
+have: binary `objectSid` values silently decoding to garbage, and a server-side size limit
+surfacing as an unhelpful raw .NET exception.
 
 It is worth being precise about what it does **not** prove: the fixture is OpenLDAP, not
 Active Directory. Real `objectCategory` filter semantics, RootDSE `defaultNamingContext`,
